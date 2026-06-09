@@ -2,7 +2,7 @@
 	"id": "obsidian-web-search",
 	"name": "Web Search",
 	"version": "0.1.0",
-	"minAppVersion": "1.0.0",
+	"minAppVersion": "1.1.0",
 	"description": "Search selected text on the web via context menu or command palette. Supports multiple search engines with customizable presets.",
 	"author": "celica",
 	"authorUrl": "https://github.com/hoshimiyacelica",

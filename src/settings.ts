@@ -8,10 +8,15 @@ import {
 	setIcon,
 } from "obsidian";
 import type WebSearchPlugin from "./main";
+import { isSafeCustomIconDataUrl } from "./icon-data";
+import {
+	getFaviconUrl,
+	validateSearchUrlTemplate,
+	type SearchUrlValidationError,
+} from "./search-url";
 import {
 	DEFAULT_SETTINGS,
 	PRESET_ENGINES,
-	getFaviconUrl,
 	type IconType,
 	type SearchEngine,
 	type SiteCategory,
@@ -36,25 +41,32 @@ const LUCIDE_OPTIONS: { value: string; label: string }[] = [
 
 const MAX_ICON_PX = 128;
 const MAX_FILE_BYTES = 512 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set([
+	"image/png",
+	"image/jpeg",
+	"image/webp",
+]);
 
 // ── Image processing ───────────────────────────────────────────
 
-function processImage(file: File): Promise<string> {
+function processImage(file: File, doc: Document): Promise<string> {
+	if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+		return Promise.reject(new Error(t("notice.unsupportedImageType")));
+	}
 	if (file.size > MAX_FILE_BYTES) {
-		return Promise.reject(new Error("File too large (max 512 KB)"));
+		return Promise.reject(new Error(t("notice.imageTooLarge")));
 	}
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
 		reader.onerror = reject;
 
-		if (file.type === "image/svg+xml") {
-			reader.onload = () => resolve(reader.result as string);
-			reader.readAsDataURL(file);
-			return;
-		}
-
 		reader.onload = () => {
-			const img = new Image();
+			if (typeof reader.result !== "string") {
+				reject(new Error(t("notice.invalidImage")));
+				return;
+			}
+
+			const img = doc.createElement("img");
 			img.onload = () => {
 				let w = img.width;
 				let h = img.height;
@@ -63,31 +75,43 @@ function processImage(file: File): Promise<string> {
 					w = Math.round(w * scale);
 					h = Math.round(h * scale);
 				}
-				const canvas = document.createElement("canvas");
+				const canvas = doc.createElement("canvas");
 				canvas.width = w;
 				canvas.height = h;
 				const ctx = canvas.getContext("2d");
 				if (!ctx) {
-					reject(new Error("Canvas not available"));
+					reject(new Error(t("notice.invalidImage")));
 					return;
 				}
 				ctx.drawImage(img, 0, 0, w, h);
 				resolve(canvas.toDataURL("image/png"));
 			};
-			img.onerror = () => reject(new Error("Invalid image"));
-			img.src = reader.result as string;
+			img.onerror = () => reject(new Error(t("notice.invalidImage")));
+			img.src = reader.result;
 		};
 		reader.readAsDataURL(file);
 	});
 }
 
+function getUrlValidationMessage(error: SearchUrlValidationError): string {
+	switch (error) {
+		case "missing-placeholder":
+			return t("notice.missingQueryPlaceholder");
+		case "unsupported-protocol":
+			return t("notice.httpsRequired");
+		case "invalid-url":
+			return t("notice.invalidUrlTemplate");
+	}
+}
+
 // ── Icon rendering helper ──────────────────────────────────────
 
-function renderEngineIcon(
-	container: HTMLElement,
-	engine: SearchEngine
-): void {
-	if (engine.iconType === "custom" && engine.customIcon) {
+function renderEngineIcon(container: HTMLElement, engine: SearchEngine): void {
+	if (
+		engine.iconType === "custom" &&
+		engine.customIcon &&
+		isSafeCustomIconDataUrl(engine.customIcon)
+	) {
 		const img = container.createEl("img", {
 			attr: { src: engine.customIcon, alt: engine.name },
 		});
@@ -135,35 +159,14 @@ export class WebSearchSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// ── General ──
-		containerEl.createEl("h3", { text: t("settings.general") });
-
-		new Setting(containerEl)
-			.setName(t("settings.openInBrowser"))
-			.setDesc(t("settings.openInBrowserDesc"))
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.openInBrowser)
-					.onChange(async (v) => {
-						this.plugin.settings.openInBrowser = v;
-						await this.plugin.saveSettings();
-					})
-			);
-
 		new Setting(containerEl)
 			.setName(t("settings.maxContextMenuItems"))
 			.setDesc(t("settings.maxContextMenuItemsDesc"))
 			.addDropdown((dd) => {
-				for (let i = 1; i <= 10; i++)
-					dd.addOption(String(i), String(i));
-				dd.setValue(
-					String(this.plugin.settings.maxContextMenuItems)
-				);
+				for (let i = 1; i <= 10; i++) dd.addOption(String(i), String(i));
+				dd.setValue(String(this.plugin.settings.maxContextMenuItems));
 				dd.onChange(async (v) => {
-					this.plugin.settings.maxContextMenuItems = parseInt(
-						v,
-						10
-					);
+					this.plugin.settings.maxContextMenuItems = parseInt(v, 10);
 					await this.plugin.saveSettings();
 				});
 			});
@@ -187,7 +190,10 @@ export class WebSearchSettingTab extends PluginSettingTab {
 			});
 			setIcon(chevron, collapsed ? "chevron-right" : "chevron-down");
 
-			const title = header.createEl("h3", { text: cat.name });
+			const title = header.createDiv({
+				cls: "web-search-category-title",
+				text: cat.name,
+			});
 
 			if (engines.length > 0) {
 				title.createEl("span", {
@@ -206,7 +212,7 @@ export class WebSearchSettingTab extends PluginSettingTab {
 					this.plugin,
 					cat,
 					engines.length,
-					async () => this.display()
+					() => this.display(),
 				).open();
 			});
 
@@ -214,7 +220,7 @@ export class WebSearchSettingTab extends PluginSettingTab {
 			const list = containerEl.createDiv({
 				cls: "web-search-engine-list",
 			});
-			if (collapsed) list.style.display = "none";
+			list.toggleClass("is-collapsed", collapsed);
 
 			for (const engine of engines) {
 				const absIndex = allEngines.indexOf(engine);
@@ -230,16 +236,12 @@ export class WebSearchSettingTab extends PluginSettingTab {
 					this.collapsedCategories.add(cat.id);
 				}
 				const isNowCollapsed = this.collapsedCategories.has(cat.id);
-				list.style.display = isNowCollapsed ? "none" : "";
+				list.toggleClass("is-collapsed", isNowCollapsed);
 				chevron.empty();
-				setIcon(
-					chevron,
-					isNowCollapsed ? "chevron-right" : "chevron-down"
-				);
+				setIcon(chevron, isNowCollapsed ? "chevron-right" : "chevron-down");
 			};
 			chevron.addEventListener("click", toggleCollapse);
 			title.addEventListener("click", toggleCollapse);
-			title.style.cursor = "pointer";
 		}
 
 		// ── Bottom actions ──
@@ -256,11 +258,9 @@ export class WebSearchSettingTab extends PluginSettingTab {
 				this.app,
 				null,
 				this.plugin.settings.categories,
-				async (created) => {
-					this.plugin.settings.engines.push(created);
-					await this.plugin.saveSettings();
-					this.display();
-				}
+				(created) => {
+					void this.addEngine(created);
+				},
 			).open();
 		});
 
@@ -268,13 +268,8 @@ export class WebSearchSettingTab extends PluginSettingTab {
 			text: t("settings.addCategory"),
 		});
 		addCatBtn.addEventListener("click", () => {
-			new AddCategoryModal(this.app, async (name) => {
-				this.plugin.settings.categories.push({
-					id: "cat-" + Date.now().toString(36),
-					name,
-				});
-				await this.plugin.saveSettings();
-				this.display();
+			new AddCategoryModal(this.app, (name) => {
+				void this.addCategory(name);
 			}).open();
 		});
 
@@ -283,16 +278,14 @@ export class WebSearchSettingTab extends PluginSettingTab {
 				text: t("settings.restorePresets"),
 			});
 			restoreBtn.addEventListener("click", () => {
-				new RestorePresetsModal(
-					this.app,
-					this.plugin,
-					async () => this.display()
+				new RestorePresetsModal(this.app, this.plugin, () =>
+					this.display(),
 				).open();
 			});
 		}
 
 		// ── Reset all ──
-		containerEl.createEl("h3", { text: t("settings.resetAll") });
+		new Setting(containerEl).setName(t("settings.resetAll")).setHeading();
 
 		new Setting(containerEl)
 			.setDesc(t("settings.resetAllDesc"))
@@ -301,13 +294,26 @@ export class WebSearchSettingTab extends PluginSettingTab {
 					.setButtonText(t("settings.resetAll"))
 					.setWarning()
 					.onClick(() => {
-						new ResetAllModal(
-							this.app,
-							this.plugin,
-							async () => this.display()
+						new ResetAllModal(this.app, this.plugin, () =>
+							this.display(),
 						).open();
-					})
+					}),
 			);
+	}
+
+	private async addEngine(engine: SearchEngine): Promise<void> {
+		this.plugin.settings.engines.push(engine);
+		await this.plugin.saveSettings();
+		this.display();
+	}
+
+	private async addCategory(name: string): Promise<void> {
+		this.plugin.settings.categories.push({
+			id: "cat-" + Date.now().toString(36),
+			name,
+		});
+		await this.plugin.saveSettings();
+		this.display();
 	}
 
 	// ── Engine row ──
@@ -315,7 +321,7 @@ export class WebSearchSettingTab extends PluginSettingTab {
 	private renderEngineRow(
 		listEl: HTMLElement,
 		engine: SearchEngine,
-		index: number
+		index: number,
 	): void {
 		const row = listEl.createDiv({ cls: "web-search-engine-item" });
 		row.draggable = true;
@@ -349,34 +355,21 @@ export class WebSearchSettingTab extends PluginSettingTab {
 				this.app,
 				engine,
 				this.plugin.settings.categories,
-				async (updated) => {
-					Object.assign(engine, updated);
-					await this.plugin.saveSettings();
-					this.display();
-				}
+				(updated) => {
+					void this.updateEngine(engine, updated);
+				},
 			).open();
 		});
 
 		const delBtn = acts.createDiv({ cls: "clickable-icon" });
 		setIcon(delBtn, "trash");
-		delBtn.addEventListener("click", async () => {
-			if (engine.isPreset) {
-				this.plugin.settings.deletedPresetIds.push(engine.id);
-			}
-			this.plugin.settings.engines =
-				this.plugin.settings.engines.filter(
-					(e) => e.id !== engine.id
-				);
-			await this.plugin.saveSettings();
-			this.display();
+		delBtn.addEventListener("click", () => {
+			void this.deleteEngine(engine);
 		});
 
-		new ToggleComponent(acts)
-			.setValue(engine.enabled)
-			.onChange(async (v) => {
-				engine.enabled = v;
-				await this.plugin.saveSettings();
-			});
+		new ToggleComponent(acts).setValue(engine.enabled).onChange((enabled) => {
+			void this.setEngineEnabled(engine, enabled);
+		});
 
 		// Drag events on the row
 		row.addEventListener("dragstart", (e) => {
@@ -401,11 +394,11 @@ export class WebSearchSettingTab extends PluginSettingTab {
 	private setupListDragListeners(listEl: HTMLElement): void {
 		listEl.addEventListener("dragover", (e) => {
 			e.preventDefault();
-			if (this.draggedIndex === null || this.dragSourceList !== listEl)
-				return;
-			const target = (e.target as HTMLElement).closest(
-				".web-search-engine-item"
-			) as HTMLElement | null;
+			if (this.draggedIndex === null || this.dragSourceList !== listEl) return;
+			const targetNode = e.targetNode;
+			if (!targetNode?.instanceOf(HTMLElement)) return;
+			const target = targetNode.closest(".web-search-engine-item");
+			if (!target?.instanceOf(HTMLElement)) return;
 			if (!target?.dataset.index) return;
 			if (parseInt(target.dataset.index) === this.draggedIndex) return;
 			listEl
@@ -421,33 +414,67 @@ export class WebSearchSettingTab extends PluginSettingTab {
 					.forEach((el) => el.classList.remove("drag-over"));
 		});
 
-		listEl.addEventListener("drop", async (e) => {
+		listEl.addEventListener("drop", (e) => {
 			e.preventDefault();
-			listEl
-				.querySelectorAll(".drag-over")
-				.forEach((el) => el.classList.remove("drag-over"));
-			if (this.draggedIndex === null || this.dragSourceList !== listEl)
-				return;
-			const target = (e.target as HTMLElement).closest(
-				".web-search-engine-item"
-			) as HTMLElement | null;
-			if (!target?.dataset.index) return;
-			const targetIndex = parseInt(target.dataset.index);
-			if (targetIndex === this.draggedIndex) return;
-
-			const engines = this.plugin.settings.engines;
-			const [dragged] = engines.splice(this.draggedIndex, 1);
-			const insertAt =
-				this.draggedIndex < targetIndex
-					? targetIndex - 1
-					: targetIndex;
-			engines.splice(insertAt, 0, dragged);
-
-			this.draggedIndex = null;
-			this.dragSourceList = null;
-			await this.plugin.saveSettings();
-			this.display();
+			void this.handleDrop(e, listEl);
 		});
+	}
+
+	private async updateEngine(
+		original: SearchEngine,
+		updated: SearchEngine,
+	): Promise<void> {
+		const engineIndex = this.plugin.settings.engines.indexOf(original);
+		if (engineIndex === -1) return;
+		this.plugin.settings.engines[engineIndex] = updated;
+		await this.plugin.saveSettings();
+		this.display();
+	}
+
+	private async deleteEngine(engine: SearchEngine): Promise<void> {
+		if (engine.isPreset) {
+			this.plugin.settings.deletedPresetIds.push(engine.id);
+		}
+		this.plugin.settings.engines = this.plugin.settings.engines.filter(
+			(candidate) => candidate.id !== engine.id,
+		);
+		await this.plugin.saveSettings();
+		this.display();
+	}
+
+	private async setEngineEnabled(
+		engine: SearchEngine,
+		enabled: boolean,
+	): Promise<void> {
+		engine.enabled = enabled;
+		await this.plugin.saveSettings();
+	}
+
+	private async handleDrop(e: DragEvent, listEl: HTMLElement): Promise<void> {
+		listEl
+			.querySelectorAll(".drag-over")
+			.forEach((el) => el.classList.remove("drag-over"));
+		if (this.draggedIndex === null || this.dragSourceList !== listEl) return;
+
+		const targetNode = e.targetNode;
+		if (!targetNode?.instanceOf(HTMLElement)) return;
+		const target = targetNode.closest(".web-search-engine-item");
+		if (!target?.instanceOf(HTMLElement) || !target.dataset.index) return;
+
+		const targetIndex = parseInt(target.dataset.index);
+		if (targetIndex === this.draggedIndex) return;
+
+		const engines = this.plugin.settings.engines;
+		const [dragged] = engines.splice(this.draggedIndex, 1);
+		if (!dragged) return;
+		const insertAt =
+			this.draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+		engines.splice(insertAt, 0, dragged);
+
+		this.draggedIndex = null;
+		this.dragSourceList = null;
+		await this.plugin.saveSettings();
+		this.display();
 	}
 }
 
@@ -471,7 +498,7 @@ class SiteEditModal extends Modal {
 		app: App,
 		engine: SearchEngine | null,
 		categories: SiteCategory[],
-		onSubmit: (engine: SearchEngine) => void
+		onSubmit: (engine: SearchEngine) => void,
 	) {
 		super(app);
 		this.engine = engine;
@@ -483,49 +510,39 @@ class SiteEditModal extends Modal {
 		this.iconTypeValue = engine?.iconType ?? "favicon";
 		this.iconValue = engine?.icon ?? "search";
 		this.customIconValue = engine?.customIcon;
-		this.categoryValue =
-			engine?.category ?? categories[0]?.id ?? "search";
+		this.categoryValue = engine?.category ?? categories[0]?.id ?? "search";
 	}
 
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", {
-			text: this.engine ? t("modal.editSite") : t("modal.addSite"),
+		this.setTitle(this.engine ? t("modal.editSite") : t("modal.addSite"));
+
+		new Setting(contentEl).setName(t("modal.name")).addText((text) =>
+			text.setValue(this.nameValue).onChange((v) => {
+				this.nameValue = v;
+			}),
+		);
+
+		new Setting(contentEl).setName(t("modal.category")).addDropdown((dd) => {
+			for (const cat of this.categories) dd.addOption(cat.id, cat.name);
+			dd.setValue(this.categoryValue);
+			dd.onChange((v) => {
+				this.categoryValue = v;
+			});
 		});
 
-		new Setting(contentEl)
-			.setName(t("modal.name"))
-			.addText((text) =>
-				text.setValue(this.nameValue).onChange((v) => {
-					this.nameValue = v;
-				})
-			);
-
-		new Setting(contentEl)
-			.setName(t("modal.category"))
-			.addDropdown((dd) => {
-				for (const cat of this.categories)
-					dd.addOption(cat.id, cat.name);
-				dd.setValue(this.categoryValue);
-				dd.onChange((v) => {
-					this.categoryValue = v;
-				});
+		new Setting(contentEl).setName(t("modal.iconType")).addDropdown((dd) => {
+			dd.addOption("favicon", t("modal.iconTypeFavicon"));
+			dd.addOption("lucide", t("modal.iconTypeLucide"));
+			dd.addOption("custom", t("modal.iconTypeCustom"));
+			dd.setValue(this.iconTypeValue);
+			dd.onChange((v) => {
+				this.iconTypeValue = v as IconType;
+				this.renderIconOptions();
 			});
-
-		new Setting(contentEl)
-			.setName(t("modal.iconType"))
-			.addDropdown((dd) => {
-				dd.addOption("favicon", t("modal.iconTypeFavicon"));
-				dd.addOption("lucide", t("modal.iconTypeLucide"));
-				dd.addOption("custom", t("modal.iconTypeCustom"));
-				dd.setValue(this.iconTypeValue);
-				dd.onChange((v) => {
-					this.iconTypeValue = v as IconType;
-					this.renderIconOptions();
-				});
-			});
+		});
 
 		this.iconOptionsEl = contentEl.createDiv();
 		this.renderIconOptions();
@@ -539,7 +556,7 @@ class SiteEditModal extends Modal {
 					.setValue(this.urlValue)
 					.onChange((v) => {
 						this.urlValue = v;
-					})
+					}),
 			);
 
 		new Setting(contentEl).addButton((btn) =>
@@ -547,12 +564,14 @@ class SiteEditModal extends Modal {
 				.setButtonText(t("modal.save"))
 				.setCta()
 				.onClick(() => {
-					if (!this.nameValue.trim() || !this.urlValue.trim())
+					if (!this.nameValue.trim() || !this.urlValue.trim()) return;
+					const urlError = validateSearchUrlTemplate(this.urlValue.trim());
+					if (urlError) {
+						new Notice(getUrlValidationMessage(urlError));
 						return;
+					}
 					const result: SearchEngine = {
-						id:
-							this.engine?.id ??
-							"custom-" + Date.now().toString(36),
+						id: this.engine?.id ?? "custom-" + Date.now().toString(36),
 						name: this.nameValue.trim(),
 						urlTemplate: this.urlValue.trim(),
 						enabled: this.engine?.enabled ?? true,
@@ -560,14 +579,16 @@ class SiteEditModal extends Modal {
 						iconType: this.iconTypeValue,
 						icon: this.iconValue,
 						customIcon:
-							this.iconTypeValue === "custom"
+							this.iconTypeValue === "custom" &&
+							this.customIconValue &&
+							isSafeCustomIconDataUrl(this.customIconValue)
 								? this.customIconValue
 								: undefined,
 						category: this.categoryValue,
 					};
 					this.onSubmit(result);
 					this.close();
-				})
+				}),
 		);
 	}
 
@@ -578,8 +599,7 @@ class SiteEditModal extends Modal {
 			new Setting(this.iconOptionsEl)
 				.setName(t("modal.icon"))
 				.addDropdown((dd) => {
-					for (const opt of LUCIDE_OPTIONS)
-						dd.addOption(opt.value, opt.label);
+					for (const opt of LUCIDE_OPTIONS) dd.addOption(opt.value, opt.label);
 					dd.setValue(this.iconValue);
 					dd.onChange((v) => {
 						this.iconValue = v;
@@ -592,10 +612,10 @@ class SiteEditModal extends Modal {
 			const fileInput = this.iconOptionsEl.createEl("input", {
 				attr: {
 					type: "file",
-					accept: "image/png,image/jpeg,image/svg+xml,image/webp",
+					accept: "image/png,image/jpeg,image/webp",
 				},
+				cls: "web-search-file-input",
 			});
-			fileInput.style.display = "none";
 
 			new Setting(this.iconOptionsEl)
 				.setName(t("modal.chooseFile"))
@@ -603,21 +623,17 @@ class SiteEditModal extends Modal {
 				.addButton((btn) =>
 					btn
 						.setButtonText(t("modal.chooseFile"))
-						.onClick(() => fileInput.click())
+						.onClick(() => fileInput.click()),
 				);
 
-			fileInput.addEventListener("change", async () => {
-				const file = fileInput.files?.[0];
-				if (!file) return;
-				try {
-					this.customIconValue = await processImage(file);
-					this.renderIconOptions();
-				} catch (e: any) {
-					new Notice(String(e?.message ?? e));
-				}
+			fileInput.addEventListener("change", () => {
+				void this.loadCustomIcon(fileInput);
 			});
 
-			if (this.customIconValue) {
+			if (
+				this.customIconValue &&
+				isSafeCustomIconDataUrl(this.customIconValue)
+			) {
 				const preview = this.iconOptionsEl.createDiv({
 					cls: "web-search-icon-preview",
 				});
@@ -625,6 +641,20 @@ class SiteEditModal extends Modal {
 					attr: { src: this.customIconValue },
 				});
 			}
+		}
+	}
+
+	private async loadCustomIcon(fileInput: HTMLInputElement): Promise<void> {
+		const file = fileInput.files?.[0];
+		if (!file) return;
+
+		try {
+			this.customIconValue = await processImage(file, this.contentEl.doc);
+			this.renderIconOptions();
+		} catch (error: unknown) {
+			new Notice(
+				error instanceof Error ? error.message : t("notice.invalidImage"),
+			);
 		}
 	}
 
@@ -647,15 +677,13 @@ class AddCategoryModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: t("modal.addCategory") });
+		this.setTitle(t("modal.addCategory"));
 
-		new Setting(contentEl)
-			.setName(t("modal.categoryName"))
-			.addText((text) =>
-				text.onChange((v) => {
-					this.nameValue = v;
-				})
-			);
+		new Setting(contentEl).setName(t("modal.categoryName")).addText((text) =>
+			text.onChange((v) => {
+				this.nameValue = v;
+			}),
+		);
 
 		new Setting(contentEl).addButton((btn) =>
 			btn
@@ -665,7 +693,7 @@ class AddCategoryModal extends Modal {
 					if (!this.nameValue.trim()) return;
 					this.onSubmit(this.nameValue.trim());
 					this.close();
-				})
+				}),
 		);
 	}
 
@@ -687,7 +715,7 @@ class DeleteCategoryModal extends Modal {
 		plugin: WebSearchPlugin,
 		category: SiteCategory,
 		siteCount: number,
-		onDone: () => void
+		onDone: () => void,
 	) {
 		super(app);
 		this.plugin = plugin;
@@ -699,14 +727,14 @@ class DeleteCategoryModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: t("modal.deleteCategoryConfirm") });
+		this.setTitle(t("modal.deleteCategoryConfirm"));
 
 		const message =
 			this.siteCount > 0
 				? t(
 						"modal.deleteCategoryWithSites",
 						this.category.name,
-						String(this.siteCount)
+						String(this.siteCount),
 					)
 				: t("modal.deleteCategoryEmpty", this.category.name);
 		contentEl.createEl("p", { text: message });
@@ -720,25 +748,23 @@ class DeleteCategoryModal extends Modal {
 						const engines = this.plugin.settings.engines;
 						for (const e of engines) {
 							if (e.category === this.category.id && e.isPreset) {
-								this.plugin.settings.deletedPresetIds.push(
-									e.id
-								);
+								this.plugin.settings.deletedPresetIds.push(e.id);
 							}
 						}
 						this.plugin.settings.engines = engines.filter(
-							(e) => e.category !== this.category.id
+							(e) => e.category !== this.category.id,
 						);
 						this.plugin.settings.categories =
 							this.plugin.settings.categories.filter(
-								(c) => c.id !== this.category.id
+								(c) => c.id !== this.category.id,
 							);
 						await this.plugin.saveSettings();
 						this.close();
 						this.onDone();
-					})
+					}),
 			)
 			.addButton((btn) =>
-				btn.setButtonText(t("modal.cancel")).onClick(() => this.close())
+				btn.setButtonText(t("modal.cancel")).onClick(() => this.close()),
 			);
 	}
 
@@ -762,7 +788,7 @@ class ResetAllModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: t("modal.resetAllConfirm") });
+		this.setTitle(t("modal.resetAllConfirm"));
 		contentEl.createEl("p", { text: t("modal.resetAllMessage") });
 
 		new Setting(contentEl)
@@ -776,20 +802,18 @@ class ResetAllModal extends Modal {
 							engines: DEFAULT_SETTINGS.engines.map((e) => ({
 								...e,
 							})),
-							categories: DEFAULT_SETTINGS.categories.map(
-								(c) => ({
-									...c,
-									name: getDefaultCategoryName(c.id),
-								})
-							),
+							categories: DEFAULT_SETTINGS.categories.map((c) => ({
+								...c,
+								name: getDefaultCategoryName(c.id),
+							})),
 						};
 						await this.plugin.saveSettings();
 						this.close();
 						this.onDone();
-					})
+					}),
 			)
 			.addButton((btn) =>
-				btn.setButtonText(t("modal.cancel")).onClick(() => this.close())
+				btn.setButtonText(t("modal.cancel")).onClick(() => this.close()),
 			);
 	}
 
@@ -813,7 +837,7 @@ class RestorePresetsModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl("h2", { text: t("modal.restorePresets") });
+		this.setTitle(t("modal.restorePresets"));
 
 		const deleted = this.plugin.settings.deletedPresetIds;
 		if (deleted.length === 0) {
@@ -847,25 +871,28 @@ class RestorePresetsModal extends Modal {
 			const btn = row.createEl("button", {
 				text: t("modal.restore"),
 			});
-			btn.addEventListener("click", async () => {
-				// Ensure category exists
-				const cats = this.plugin.settings.categories;
-				if (!cats.find((c) => c.id === preset.category)) {
-					cats.push({
-						id: preset.category,
-						name: getDefaultCategoryName(preset.category),
-					});
-				}
-				this.plugin.settings.engines.push({ ...preset });
-				this.plugin.settings.deletedPresetIds =
-					this.plugin.settings.deletedPresetIds.filter(
-						(i) => i !== id
-					);
-				await this.plugin.saveSettings();
-				this.onOpen();
-				this.onDone();
+			btn.addEventListener("click", () => {
+				void this.restorePreset(id, preset);
 			});
 		}
+	}
+
+	private async restorePreset(id: string, preset: SearchEngine): Promise<void> {
+		const categories = this.plugin.settings.categories;
+		if (!categories.find((category) => category.id === preset.category)) {
+			categories.push({
+				id: preset.category,
+				name: getDefaultCategoryName(preset.category),
+			});
+		}
+		this.plugin.settings.engines.push({ ...preset });
+		this.plugin.settings.deletedPresetIds =
+			this.plugin.settings.deletedPresetIds.filter(
+				(deletedId) => deletedId !== id,
+			);
+		await this.plugin.saveSettings();
+		this.onOpen();
+		this.onDone();
 	}
 
 	onClose(): void {

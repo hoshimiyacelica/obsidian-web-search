@@ -21,17 +21,7 @@ export interface WebSearchSettings {
 	engines: SearchEngine[];
 	categories: SiteCategory[];
 	deletedPresetIds: string[];
-	openInBrowser: boolean;
 	maxContextMenuItems: number;
-}
-
-export function getFaviconUrl(urlTemplate: string): string | null {
-	try {
-		const url = new URL(urlTemplate.replace("{{query}}", "test"));
-		return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=64`;
-	} catch {
-		return null;
-	}
 }
 
 export const PRESET_ENGINES: SearchEngine[] = [
@@ -148,6 +138,5 @@ export const DEFAULT_SETTINGS: WebSearchSettings = {
 	engines: PRESET_ENGINES.map((e) => ({ ...e })),
 	categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })),
 	deletedPresetIds: [],
-	openInBrowser: true,
 	maxContextMenuItems: 1,
 };

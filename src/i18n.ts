@@ -5,9 +5,12 @@ interface Translations {
 	"command.searchSelectedText": string;
 	"notice.noTextSelected": string;
 	"notice.noSitesEnabled": string;
-	"settings.general": string;
-	"settings.openInBrowser": string;
-	"settings.openInBrowserDesc": string;
+	"notice.invalidUrlTemplate": string;
+	"notice.missingQueryPlaceholder": string;
+	"notice.httpsRequired": string;
+	"notice.unsupportedImageType": string;
+	"notice.imageTooLarge": string;
+	"notice.invalidImage": string;
 	"settings.maxContextMenuItems": string;
 	"settings.maxContextMenuItemsDesc": string;
 	"settings.addSite": string;
@@ -49,10 +52,12 @@ const en: Translations = {
 	"command.searchSelectedText": "Search selected text on the web",
 	"notice.noTextSelected": "No text selected.",
 	"notice.noSitesEnabled": "No sites enabled. Enable them in settings.",
-	"settings.general": "General",
-	"settings.openInBrowser": "Open in browser",
-	"settings.openInBrowserDesc":
-		"Open search results in the default browser. When disabled, results open in an Obsidian iframe.",
+	"notice.invalidUrlTemplate": "Enter a valid search URL.",
+	"notice.missingQueryPlaceholder": "Include {{query}} in the search URL.",
+	"notice.httpsRequired": "The search URL must use HTTPS.",
+	"notice.unsupportedImageType": "Choose a PNG, JPEG, or WebP image.",
+	"notice.imageTooLarge": "The image must be 512 KB or smaller.",
+	"notice.invalidImage": "The selected file is not a valid image.",
 	"settings.maxContextMenuItems": "Context menu items",
 	"settings.maxContextMenuItemsDesc":
 		"Maximum number of sites shown in the right-click menu. Sites are shown in the order listed below.",
@@ -70,7 +75,7 @@ const en: Translations = {
 	"modal.iconTypeLucide": "Lucide icon",
 	"modal.iconTypeCustom": "Custom image",
 	"modal.chooseFile": "Choose file",
-	"modal.imageConstraints": "PNG, JPEG, SVG, WebP — max 128×128",
+	"modal.imageConstraints": "PNG, JPEG, or WebP; 512 KB maximum",
 	"modal.category": "Category",
 	"modal.urlTemplate": "URL template",
 	"modal.urlTemplateDesc":
@@ -80,10 +85,9 @@ const en: Translations = {
 	"modal.restorePresets": "Restore presets",
 	"modal.noDeletedPresets": "No deleted presets to restore.",
 	"modal.deleteCategoryConfirm": "Delete category",
-	"modal.deleteCategoryEmpty":
-		"Delete the category \"$1\"?",
+	"modal.deleteCategoryEmpty": 'Delete the category "$1"?',
 	"modal.deleteCategoryWithSites":
-		"Delete the category \"$1\" and its $2 site(s)? This cannot be undone.",
+		'Delete the category "$1" and its $2 site(s)? This cannot be undone.',
 	"modal.delete": "Delete",
 	"settings.resetAll": "Reset all settings",
 	"settings.resetAllDesc":
@@ -101,10 +105,13 @@ const ja: Translations = {
 	"notice.noTextSelected": "テキストが選択されていません。",
 	"notice.noSitesEnabled":
 		"有効なサイトがありません。設定で有効にしてください。",
-	"settings.general": "一般",
-	"settings.openInBrowser": "ブラウザで開く",
-	"settings.openInBrowserDesc":
-		"検索結果をデフォルトブラウザで開きます。無効の場合、Obsidian 内の iframe で開きます。",
+	"notice.invalidUrlTemplate": "有効な検索 URL を入力してください。",
+	"notice.missingQueryPlaceholder": "検索 URL に {{query}} を含めてください。",
+	"notice.httpsRequired": "検索 URL は HTTPS を使用してください。",
+	"notice.unsupportedImageType":
+		"PNG、JPEG、WebP のいずれかを選択してください。",
+	"notice.imageTooLarge": "画像は 512 KB 以下にしてください。",
+	"notice.invalidImage": "選択したファイルは有効な画像ではありません。",
 	"settings.maxContextMenuItems": "コンテキストメニューの表示数",
 	"settings.maxContextMenuItemsDesc":
 		"右クリックメニューに表示するサイトの最大数。上から順に表示されます。",
@@ -122,7 +129,7 @@ const ja: Translations = {
 	"modal.iconTypeLucide": "Lucide アイコン",
 	"modal.iconTypeCustom": "カスタム画像",
 	"modal.chooseFile": "ファイルを選択",
-	"modal.imageConstraints": "PNG, JPEG, SVG, WebP — 最大 128×128",
+	"modal.imageConstraints": "PNG、JPEG、WebP、最大 512 KB",
 	"modal.category": "カテゴリ",
 	"modal.urlTemplate": "URL テンプレート",
 	"modal.urlTemplateDesc":
@@ -132,8 +139,7 @@ const ja: Translations = {
 	"modal.restorePresets": "プリセットを復元",
 	"modal.noDeletedPresets": "復元可能なプリセットはありません。",
 	"modal.deleteCategoryConfirm": "カテゴリを削除",
-	"modal.deleteCategoryEmpty":
-		"カテゴリ「$1」を削除しますか？",
+	"modal.deleteCategoryEmpty": "カテゴリ「$1」を削除しますか？",
 	"modal.deleteCategoryWithSites":
 		"カテゴリ「$1」と含まれる $2 件のサイトを削除しますか？この操作は元に戻せません。",
 	"modal.delete": "削除",
@@ -165,12 +171,19 @@ export function t(key: keyof Translations, ...args: string[]): string {
 	const table = translations[locale] ?? en;
 	let text = table[key] ?? en[key];
 	for (let i = 0; i < args.length; i++) {
-		text = text.replace(`$${i + 1}`, args[i]);
+		const argument = args[i];
+		if (argument !== undefined) {
+			text = text.replace(`$${i + 1}`, argument);
+		}
 	}
 	return text;
 }
 
 export function getDefaultCategoryName(id: string): string {
 	const locale = getLocale();
-	return DEFAULT_CATEGORY_NAMES[locale]?.[id] ?? DEFAULT_CATEGORY_NAMES.en[id] ?? id;
+	return (
+		DEFAULT_CATEGORY_NAMES[locale]?.[id] ??
+		DEFAULT_CATEGORY_NAMES.en?.[id] ??
+		id
+	);
 }

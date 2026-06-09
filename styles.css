@@ -8,6 +8,10 @@
 	gap: 2px;
 }
 
+.web-search-engine-list.is-collapsed {
+	display: none;
+}
+
 .web-search-engine-item {
 	display: flex;
 	align-items: center;
@@ -37,9 +41,13 @@
 	margin-bottom: 4px;
 }
 
-.web-search-category-header h3 {
+.web-search-category-title {
 	flex: 1;
 	margin: 0;
+	font-size: var(--h3-size);
+	font-weight: var(--h3-weight);
+	line-height: var(--h3-line-height);
+	cursor: pointer;
 }
 
 .web-search-category-chevron {
@@ -179,14 +187,6 @@
 	height: 16px;
 }
 
-/* ── Context menu favicon ── */
-
-.web-search-menu-favicon {
-	width: 18px;
-	height: 18px;
-	object-fit: contain;
-}
-
 /* ── Bottom action buttons ── */
 
 .web-search-bottom-actions {
@@ -211,6 +211,10 @@
 	border-radius: 6px;
 	background: var(--background-secondary);
 	padding: 4px;
+}
+
+.web-search-file-input {
+	display: none;
 }
 
 /* ── Restore presets modal ── */
