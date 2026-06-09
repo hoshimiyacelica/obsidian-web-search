@@ -5,7 +5,6 @@ interface Translations {
 	"command.searchSelectedText": string;
 	"notice.noTextSelected": string;
 	"notice.noSitesEnabled": string;
-	"notice.categoryNotEmpty": string;
 	"settings.general": string;
 	"settings.openInBrowser": string;
 	"settings.openInBrowserDesc": string;
@@ -33,6 +32,16 @@ interface Translations {
 	"modal.restore": string;
 	"modal.restorePresets": string;
 	"modal.noDeletedPresets": string;
+	"modal.deleteCategoryConfirm": string;
+	"modal.deleteCategoryEmpty": string;
+	"modal.deleteCategoryWithSites": string;
+	"modal.delete": string;
+	"settings.resetAll": string;
+	"settings.resetAllDesc": string;
+	"modal.resetAllConfirm": string;
+	"modal.resetAllMessage": string;
+	"modal.reset": string;
+	"modal.cancel": string;
 }
 
 const en: Translations = {
@@ -40,8 +49,6 @@ const en: Translations = {
 	"command.searchSelectedText": "Search selected text on the web",
 	"notice.noTextSelected": "No text selected.",
 	"notice.noSitesEnabled": "No sites enabled. Enable them in settings.",
-	"notice.categoryNotEmpty":
-		"Cannot delete a category that still has sites. Remove or move them first.",
 	"settings.general": "General",
 	"settings.openInBrowser": "Open in browser",
 	"settings.openInBrowserDesc":
@@ -72,6 +79,20 @@ const en: Translations = {
 	"modal.restore": "Restore",
 	"modal.restorePresets": "Restore presets",
 	"modal.noDeletedPresets": "No deleted presets to restore.",
+	"modal.deleteCategoryConfirm": "Delete category",
+	"modal.deleteCategoryEmpty":
+		"Delete the category \"$1\"?",
+	"modal.deleteCategoryWithSites":
+		"Delete the category \"$1\" and its $2 site(s)? This cannot be undone.",
+	"modal.delete": "Delete",
+	"settings.resetAll": "Reset all settings",
+	"settings.resetAllDesc":
+		"Reset all settings to their default values. This cannot be undone.",
+	"modal.resetAllConfirm": "Reset all settings",
+	"modal.resetAllMessage":
+		"Are you sure you want to reset all settings? All custom sites and categories will be lost.",
+	"modal.reset": "Reset",
+	"modal.cancel": "Cancel",
 };
 
 const ja: Translations = {
@@ -80,8 +101,6 @@ const ja: Translations = {
 	"notice.noTextSelected": "テキストが選択されていません。",
 	"notice.noSitesEnabled":
 		"有効なサイトがありません。設定で有効にしてください。",
-	"notice.categoryNotEmpty":
-		"サイトが残っているカテゴリは削除できません。先にサイトを移動または削除してください。",
 	"settings.general": "一般",
 	"settings.openInBrowser": "ブラウザで開く",
 	"settings.openInBrowserDesc":
@@ -112,6 +131,20 @@ const ja: Translations = {
 	"modal.restore": "復元",
 	"modal.restorePresets": "プリセットを復元",
 	"modal.noDeletedPresets": "復元可能なプリセットはありません。",
+	"modal.deleteCategoryConfirm": "カテゴリを削除",
+	"modal.deleteCategoryEmpty":
+		"カテゴリ「$1」を削除しますか？",
+	"modal.deleteCategoryWithSites":
+		"カテゴリ「$1」と含まれる $2 件のサイトを削除しますか？この操作は元に戻せません。",
+	"modal.delete": "削除",
+	"settings.resetAll": "すべての設定をリセット",
+	"settings.resetAllDesc":
+		"すべての設定を初期値に戻します。この操作は元に戻せません。",
+	"modal.resetAllConfirm": "すべての設定をリセット",
+	"modal.resetAllMessage":
+		"本当にすべての設定をリセットしますか？カスタムサイトやカテゴリはすべて失われます。",
+	"modal.reset": "リセット",
+	"modal.cancel": "キャンセル",
 };
 
 const translations: Record<string, Translations> = { en, ja };

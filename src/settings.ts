@@ -9,6 +9,7 @@ import {
 } from "obsidian";
 import type WebSearchPlugin from "./main";
 import {
+	DEFAULT_SETTINGS,
 	PRESET_ENGINES,
 	getFaviconUrl,
 	type IconType,
@@ -123,6 +124,7 @@ export class WebSearchSettingTab extends PluginSettingTab {
 	plugin: WebSearchPlugin;
 	private draggedIndex: number | null = null;
 	private dragSourceList: HTMLElement | null = null;
+	private collapsedCategories: Set<string> = new Set();
 
 	constructor(app: App, plugin: WebSearchPlugin) {
 		super(app, plugin);
@@ -173,37 +175,71 @@ export class WebSearchSettingTab extends PluginSettingTab {
 		for (const cat of cats) {
 			const engines = allEngines.filter((e) => e.category === cat.id);
 
+			const collapsed = this.collapsedCategories.has(cat.id);
+
 			// Category header
 			const header = containerEl.createDiv({
 				cls: "web-search-category-header",
 			});
-			header.createEl("h3", { text: cat.name });
+
+			const chevron = header.createDiv({
+				cls: "clickable-icon web-search-category-chevron",
+			});
+			setIcon(chevron, collapsed ? "chevron-right" : "chevron-down");
+
+			const title = header.createEl("h3", { text: cat.name });
+
+			if (engines.length > 0) {
+				title.createEl("span", {
+					cls: "web-search-category-count",
+					text: ` (${engines.length})`,
+				});
+			}
+
 			const delCatBtn = header.createDiv({
 				cls: "clickable-icon web-search-category-delete",
 			});
 			setIcon(delCatBtn, "x");
-			delCatBtn.addEventListener("click", async () => {
-				if (engines.length > 0) {
-					new Notice(t("notice.categoryNotEmpty"));
-					return;
-				}
-				this.plugin.settings.categories =
-					this.plugin.settings.categories.filter(
-						(c) => c.id !== cat.id
-					);
-				await this.plugin.saveSettings();
-				this.display();
+			delCatBtn.addEventListener("click", () => {
+				new DeleteCategoryModal(
+					this.app,
+					this.plugin,
+					cat,
+					engines.length,
+					async () => this.display()
+				).open();
 			});
 
 			// Engine list
 			const list = containerEl.createDiv({
 				cls: "web-search-engine-list",
 			});
+			if (collapsed) list.style.display = "none";
+
 			for (const engine of engines) {
 				const absIndex = allEngines.indexOf(engine);
 				this.renderEngineRow(list, engine, absIndex);
 			}
 			this.setupListDragListeners(list);
+
+			// Toggle collapse
+			const toggleCollapse = () => {
+				if (this.collapsedCategories.has(cat.id)) {
+					this.collapsedCategories.delete(cat.id);
+				} else {
+					this.collapsedCategories.add(cat.id);
+				}
+				const isNowCollapsed = this.collapsedCategories.has(cat.id);
+				list.style.display = isNowCollapsed ? "none" : "";
+				chevron.empty();
+				setIcon(
+					chevron,
+					isNowCollapsed ? "chevron-right" : "chevron-down"
+				);
+			};
+			chevron.addEventListener("click", toggleCollapse);
+			title.addEventListener("click", toggleCollapse);
+			title.style.cursor = "pointer";
 		}
 
 		// ── Bottom actions ──
@@ -254,6 +290,24 @@ export class WebSearchSettingTab extends PluginSettingTab {
 				).open();
 			});
 		}
+
+		// ── Reset all ──
+		containerEl.createEl("h3", { text: t("settings.resetAll") });
+
+		new Setting(containerEl)
+			.setDesc(t("settings.resetAllDesc"))
+			.addButton((btn) =>
+				btn
+					.setButtonText(t("settings.resetAll"))
+					.setWarning()
+					.onClick(() => {
+						new ResetAllModal(
+							this.app,
+							this.plugin,
+							async () => this.display()
+						).open();
+					})
+			);
 	}
 
 	// ── Engine row ──
@@ -282,7 +336,7 @@ export class WebSearchSettingTab extends PluginSettingTab {
 		info.createDiv({ cls: "web-search-engine-name", text: engine.name });
 		info.createDiv({
 			cls: "web-search-engine-alias",
-			text: `@${engine.id}`,
+			text: engine.urlTemplate.replace(/^https?:\/\//, ""),
 		});
 
 		// Actions
@@ -613,6 +667,130 @@ class AddCategoryModal extends Modal {
 					this.close();
 				})
 		);
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
+// ── Delete category modal ─────────────────────────────────────
+
+class DeleteCategoryModal extends Modal {
+	private plugin: WebSearchPlugin;
+	private category: SiteCategory;
+	private siteCount: number;
+	private onDone: () => void;
+
+	constructor(
+		app: App,
+		plugin: WebSearchPlugin,
+		category: SiteCategory,
+		siteCount: number,
+		onDone: () => void
+	) {
+		super(app);
+		this.plugin = plugin;
+		this.category = category;
+		this.siteCount = siteCount;
+		this.onDone = onDone;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: t("modal.deleteCategoryConfirm") });
+
+		const message =
+			this.siteCount > 0
+				? t(
+						"modal.deleteCategoryWithSites",
+						this.category.name,
+						String(this.siteCount)
+					)
+				: t("modal.deleteCategoryEmpty", this.category.name);
+		contentEl.createEl("p", { text: message });
+
+		new Setting(contentEl)
+			.addButton((btn) =>
+				btn
+					.setButtonText(t("modal.delete"))
+					.setWarning()
+					.onClick(async () => {
+						const engines = this.plugin.settings.engines;
+						for (const e of engines) {
+							if (e.category === this.category.id && e.isPreset) {
+								this.plugin.settings.deletedPresetIds.push(
+									e.id
+								);
+							}
+						}
+						this.plugin.settings.engines = engines.filter(
+							(e) => e.category !== this.category.id
+						);
+						this.plugin.settings.categories =
+							this.plugin.settings.categories.filter(
+								(c) => c.id !== this.category.id
+							);
+						await this.plugin.saveSettings();
+						this.close();
+						this.onDone();
+					})
+			)
+			.addButton((btn) =>
+				btn.setButtonText(t("modal.cancel")).onClick(() => this.close())
+			);
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
+// ── Reset all modal ───────────────────────────────────────────
+
+class ResetAllModal extends Modal {
+	private plugin: WebSearchPlugin;
+	private onDone: () => void;
+
+	constructor(app: App, plugin: WebSearchPlugin, onDone: () => void) {
+		super(app);
+		this.plugin = plugin;
+		this.onDone = onDone;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: t("modal.resetAllConfirm") });
+		contentEl.createEl("p", { text: t("modal.resetAllMessage") });
+
+		new Setting(contentEl)
+			.addButton((btn) =>
+				btn
+					.setButtonText(t("modal.reset"))
+					.setWarning()
+					.onClick(async () => {
+						this.plugin.settings = {
+							...DEFAULT_SETTINGS,
+							engines: DEFAULT_SETTINGS.engines.map((e) => ({
+								...e,
+							})),
+							categories: DEFAULT_SETTINGS.categories.map(
+								(c) => ({
+									...c,
+									name: getDefaultCategoryName(c.id),
+								})
+							),
+						};
+						await this.plugin.saveSettings();
+						this.close();
+						this.onDone();
+					})
+			)
+			.addButton((btn) =>
+				btn.setButtonText(t("modal.cancel")).onClick(() => this.close())
+			);
 	}
 
 	onClose(): void {

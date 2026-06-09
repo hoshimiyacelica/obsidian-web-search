@@ -42,6 +42,30 @@
 	margin: 0;
 }
 
+.web-search-category-chevron {
+	color: var(--text-faint);
+	padding: 2px;
+	border-radius: 4px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+}
+
+.web-search-category-chevron:hover {
+	color: var(--text-normal);
+}
+
+.web-search-category-chevron svg {
+	width: 16px;
+	height: 16px;
+}
+
+.web-search-category-count {
+	font-size: var(--font-small);
+	color: var(--text-muted);
+	font-weight: normal;
+}
+
 .web-search-category-delete {
 	color: var(--text-faint);
 	padding: 4px;
