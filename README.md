@@ -1,111 +1,70 @@
 # Web Search for Obsidian
 
-[English](#english) | [日本語](#日本語)
+Search selected text on the web from Obsidian. Use the editor context menu for quick searches, or run a command from the command palette when you prefer keyboard-driven workflows.
 
----
+## Features
 
-## English
+- Search with built-in presets for Google, Bing, DuckDuckGo, Brave Search, Perplexity, Wikipedia, Google Scholar, Weblio, Wiktionary, and more.
+- Add custom HTTPS search sites with a `{{query}}` placeholder in the URL.
+- Organize sites into categories such as Search, Reference, and Dictionary.
+- Reorder sites with drag and drop.
+- Choose Lucide icons, site favicons, or custom PNG, JPEG, and WebP icons.
+- Control how many search sites appear in the right-click context menu.
+- Use the plugin UI in English or Japanese.
 
-Search selected text on the web directly from Obsidian — via the right-click context menu or the command palette.
+## Usage
 
-### Features
+1. Select text in an editor.
+2. Right-click and choose a search site, or open the command palette and run `Search selected text on the web`.
+3. If more than one enabled site is available for the command, choose the site from the picker menu.
 
-- **Multiple search engines** — Google, Bing, DuckDuckGo, Brave Search, Perplexity, Wikipedia, Google Scholar, Weblio, Wiktionary and more
-- **Custom sites** — Add HTTPS sites that accept a search query URL
-- **Categories** — Organize sites into custom categories (Search, Reference, Dictionary, etc.)
-- **Drag & drop reorder** — Arrange sites in your preferred order
-- **Custom icons** — Choose from Lucide icons, site favicons, or upload a PNG, JPEG, or WebP image
-- **Context menu control** — Configure how many sites appear in the right-click menu
-- **i18n** — English and Japanese UI
+## Settings
 
-### Usage
+- `Context menu items`: Choose how many enabled sites are shown directly in the editor context menu.
+- `Sites`: Enable, disable, edit, delete, and reorder search sites.
+- `Categories`: Group sites by workflow, for example general search, reference lookup, or dictionary lookup.
+- `URL template`: Custom sites must use HTTPS and include `{{query}}`, for example `https://example.com/search?q={{query}}`.
+- `Icons`: Use the configured site's favicon, a Lucide icon, or a locally stored custom raster image.
 
-1. Select text in the editor
-2. Right-click and choose a search engine from the context menu, **or** open the command palette and run **"Search selected text on the web"**
-3. If multiple engines are enabled, a picker menu appears
+## Installation
 
-### Installation
+### From Obsidian Community Plugins
 
-#### From Obsidian Community Plugins
+Coming soon.
 
-> Coming soon
+### Manual Installation
 
-#### Manual Installation
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/hoshimiyacelica/obsidian-web-search/releases).
+2. Create a folder named `obsidian-web-search` inside your vault's `.obsidian/plugins/` directory.
+3. Copy the downloaded files into that folder.
+4. Restart Obsidian.
+5. Enable `Web Search` in Settings -> Community plugins.
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/hoshimiyacelica/obsidian-web-search/releases)
-2. Create a folder `obsidian-web-search` inside your vault's `.obsidian/plugins/` directory
-3. Copy the downloaded files into that folder
-4. Restart Obsidian and enable the plugin in Settings → Community Plugins
+## Development
 
-### Development
+This project uses pnpm and Rollup. It does not depend on esbuild.
 
 ```bash
 pnpm install
-pnpm dev     # watch mode
-pnpm check   # tests, lint, and production build
+pnpm dev
+pnpm check
 ```
 
-### Privacy and network use
+- `pnpm dev` watches TypeScript sources and writes `main.js`.
+- `pnpm build` type-checks the source and creates a production `main.js`.
+- `pnpm check` runs tests, lint, and the production build.
+
+## Privacy and Network Use
 
 - The plugin has no telemetry, ads, account requirement, or server component.
-- A search sends the selected text to the search service chosen by the user.
-- Favicon mode requests `/favicon.ico` from the configured site's HTTPS origin when its icon is displayed.
-- Custom sites and icons are stored locally in the Obsidian plugin settings.
+- Search queries are sent only to the search service you choose.
+- Favicon mode requests `/favicon.ico` from the configured site's HTTPS origin when the icon is displayed.
+- Custom sites and icons are stored locally in Obsidian plugin settings.
 
-### License
+## Support
 
-[MIT](LICENSE)
+Please use [GitHub Issues](https://github.com/hoshimiyacelica/obsidian-web-search/issues) for bug reports and feature requests.
 
----
-
-## 日本語
-
-Obsidian のエディタで選択したテキストを、右クリックメニューまたはコマンドパレットからウェブ検索できるプラグインです。
-
-### 機能
-
-- **複数の検索エンジン** — Google、Bing、DuckDuckGo、Brave Search、Perplexity、Wikipedia、Google Scholar、Weblio、Wiktionary など
-- **カスタムサイト** — 検索クエリ URL を受け付ける HTTPS サイトを追加可能
-- **カテゴリ** — サイトをカスタムカテゴリ（検索、リファレンス、辞書など）で整理
-- **ドラッグ＆ドロップ並び替え** — サイトを好みの順序に配置
-- **カスタムアイコン** — Lucide アイコン、サイトのファビコン、PNG・JPEG・WebP 画像から選択
-- **コンテキストメニュー制御** — 右クリックメニューに表示するサイト数を設定
-- **多言語対応** — 英語・日本語 UI
-
-### 使い方
-
-1. エディタでテキストを選択
-2. 右クリックメニューから検索エンジンを選択、**または**コマンドパレットを開いて **「選択テキストをウェブ検索」** を実行
-3. 複数のエンジンが有効な場合、選択メニューが表示されます
-
-### インストール
-
-#### Obsidian コミュニティプラグインから
-
-> 近日公開予定
-
-#### 手動インストール
-
-1. [最新リリース](https://github.com/hoshimiyacelica/obsidian-web-search/releases)から `main.js`、`manifest.json`、`styles.css` をダウンロード
-2. Vault の `.obsidian/plugins/` ディレクトリ内に `obsidian-web-search` フォルダを作成
-3. ダウンロードしたファイルをそのフォルダにコピー
-4. Obsidian を再起動し、設定 → コミュニティプラグインでプラグインを有効化
-
-### 開発
-
-```bash
-pnpm install
-pnpm dev     # ウォッチモード
-pnpm check   # テスト、lint、プロダクションビルド
-```
-
-### プライバシーと外部通信
-
-- テレメトリ、広告、アカウント要件、サーバー機能はありません。
-- 検索を実行すると、選択したテキストがユーザー指定の検索サービスへ送信されます。
-- ファビコン表示時は、設定したサイトの HTTPS オリジンにある `/favicon.ico` を取得します。
-- カスタムサイトとアイコンは Obsidian のプラグイン設定内にローカル保存されます。
-
-### ライセンス
+## License
 
 [MIT](LICENSE)

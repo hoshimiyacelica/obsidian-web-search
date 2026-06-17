@@ -6,10 +6,10 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
 	globalIgnores([
 		"node_modules",
-		"esbuild.config.mjs",
 		"main.js",
 		"package.json",
 		"pnpm-lock.yaml",
+		"rollup.config.mjs",
 		"tsconfig.json",
 		"versions.json",
 	]),
