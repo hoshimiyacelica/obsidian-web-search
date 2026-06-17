@@ -13,9 +13,11 @@ interface Translations {
 	"notice.invalidImage": string;
 	"settings.maxContextMenuItems": string;
 	"settings.maxContextMenuItemsDesc": string;
+	"settings.searchSites": string;
 	"settings.addSite": string;
 	"settings.addCategory": string;
 	"settings.restorePresets": string;
+	"settings.dragSite": string;
 	"modal.editSite": string;
 	"modal.addSite": string;
 	"modal.addCategory": string;
@@ -61,9 +63,11 @@ const en: Translations = {
 	"settings.maxContextMenuItems": "Context menu items",
 	"settings.maxContextMenuItemsDesc":
 		"Maximum number of sites shown in the right-click menu. Sites are shown in the order listed below.",
+	"settings.searchSites": "Search sites",
 	"settings.addSite": "Add site",
 	"settings.addCategory": "Add category",
 	"settings.restorePresets": "Restore presets",
+	"settings.dragSite": "Drag to reorder",
 	"modal.editSite": "Edit site",
 	"modal.addSite": "Add site",
 	"modal.addCategory": "Add category",
@@ -115,9 +119,11 @@ const ja: Translations = {
 	"settings.maxContextMenuItems": "コンテキストメニューの表示数",
 	"settings.maxContextMenuItemsDesc":
 		"右クリックメニューに表示するサイトの最大数。上から順に表示されます。",
+	"settings.searchSites": "検索サイト",
 	"settings.addSite": "サイトを追加",
 	"settings.addCategory": "カテゴリを追加",
 	"settings.restorePresets": "プリセットを復元",
+	"settings.dragSite": "ドラッグして並べ替え",
 	"modal.editSite": "サイトを編集",
 	"modal.addSite": "サイトを追加",
 	"modal.addCategory": "カテゴリを追加",

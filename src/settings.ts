@@ -158,8 +158,13 @@ export class WebSearchSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+		containerEl.addClass("web-search-settings");
 
-		new Setting(containerEl)
+		const settingsPanel = containerEl.createDiv({
+			cls: "web-search-panel web-search-settings-panel",
+		});
+
+		const contextMenuSetting = new Setting(settingsPanel)
 			.setName(t("settings.maxContextMenuItems"))
 			.setDesc(t("settings.maxContextMenuItemsDesc"))
 			.addDropdown((dd) => {
@@ -170,18 +175,76 @@ export class WebSearchSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+		contextMenuSetting.settingEl.addClass("web-search-setting-row");
 
 		// ── Sites by category ──
 		const allEngines = this.plugin.settings.engines;
 		const cats = this.plugin.settings.categories;
+		const sitesPanel = containerEl.createDiv({
+			cls: "web-search-panel web-search-sites-panel",
+		});
+		const toolbar = sitesPanel.createDiv({ cls: "web-search-sites-toolbar" });
+		const toolbarTitle = toolbar.createDiv({ cls: "web-search-sites-title" });
+		const toolbarIcon = toolbarTitle.createSpan({
+			cls: "web-search-sites-title-icon",
+		});
+		setIcon(toolbarIcon, "search");
+		toolbarTitle.createSpan({ text: t("settings.searchSites") });
+
+		const actions = toolbar.createDiv({
+			cls: "web-search-top-actions",
+		});
+		this.createActionButton(
+			actions,
+			"plus",
+			t("settings.addSite"),
+			"mod-cta",
+			() => {
+				new SiteEditModal(
+					this.app,
+					null,
+					this.plugin.settings.categories,
+					(created) => {
+						void this.addEngine(created);
+					},
+				).open();
+			},
+		);
+		this.createActionButton(
+			actions,
+			"folder-plus",
+			t("settings.addCategory"),
+			"",
+			() => {
+				new AddCategoryModal(this.app, (name) => {
+					void this.addCategory(name);
+				}).open();
+			},
+		);
+		if (this.plugin.settings.deletedPresetIds.length > 0) {
+			this.createActionButton(
+				actions,
+				"rotate-ccw",
+				t("settings.restorePresets"),
+				"",
+				() => {
+					new RestorePresetsModal(this.app, this.plugin, () =>
+						this.display(),
+					).open();
+				},
+			);
+		}
 
 		for (const cat of cats) {
 			const engines = allEngines.filter((e) => e.category === cat.id);
 
 			const collapsed = this.collapsedCategories.has(cat.id);
+			const section = sitesPanel.createEl("section", {
+				cls: "web-search-category-section",
+			});
 
 			// Category header
-			const header = containerEl.createDiv({
+			const header = section.createDiv({
 				cls: "web-search-category-header",
 			});
 
@@ -198,13 +261,15 @@ export class WebSearchSettingTab extends PluginSettingTab {
 			if (engines.length > 0) {
 				title.createEl("span", {
 					cls: "web-search-category-count",
-					text: ` (${engines.length})`,
+					text: String(engines.length),
 				});
 			}
 
 			const delCatBtn = header.createDiv({
 				cls: "clickable-icon web-search-category-delete",
 			});
+			delCatBtn.ariaLabel = t("modal.delete");
+			delCatBtn.title = t("modal.delete");
 			setIcon(delCatBtn, "x");
 			delCatBtn.addEventListener("click", () => {
 				new DeleteCategoryModal(
@@ -217,7 +282,7 @@ export class WebSearchSettingTab extends PluginSettingTab {
 			});
 
 			// Engine list
-			const list = containerEl.createDiv({
+			const list = section.createDiv({
 				cls: "web-search-engine-list",
 			});
 			list.toggleClass("is-collapsed", collapsed);
@@ -244,50 +309,12 @@ export class WebSearchSettingTab extends PluginSettingTab {
 			title.addEventListener("click", toggleCollapse);
 		}
 
-		// ── Bottom actions ──
-		const actions = containerEl.createDiv({
-			cls: "web-search-bottom-actions",
-		});
-
-		const addSiteBtn = actions.createEl("button", {
-			text: t("settings.addSite"),
-			cls: "mod-cta",
-		});
-		addSiteBtn.addEventListener("click", () => {
-			new SiteEditModal(
-				this.app,
-				null,
-				this.plugin.settings.categories,
-				(created) => {
-					void this.addEngine(created);
-				},
-			).open();
-		});
-
-		const addCatBtn = actions.createEl("button", {
-			text: t("settings.addCategory"),
-		});
-		addCatBtn.addEventListener("click", () => {
-			new AddCategoryModal(this.app, (name) => {
-				void this.addCategory(name);
-			}).open();
-		});
-
-		if (this.plugin.settings.deletedPresetIds.length > 0) {
-			const restoreBtn = actions.createEl("button", {
-				text: t("settings.restorePresets"),
-			});
-			restoreBtn.addEventListener("click", () => {
-				new RestorePresetsModal(this.app, this.plugin, () =>
-					this.display(),
-				).open();
-			});
-		}
-
 		// ── Reset all ──
-		new Setting(containerEl).setName(t("settings.resetAll")).setHeading();
-
-		new Setting(containerEl)
+		const dangerPanel = containerEl.createDiv({
+			cls: "web-search-panel web-search-danger-panel",
+		});
+		const resetSetting = new Setting(dangerPanel)
+			.setName(t("settings.resetAll"))
 			.setDesc(t("settings.resetAllDesc"))
 			.addButton((btn) =>
 				btn
@@ -299,6 +326,25 @@ export class WebSearchSettingTab extends PluginSettingTab {
 						).open();
 					}),
 			);
+		resetSetting.settingEl.addClass("web-search-setting-row");
+	}
+
+	private createActionButton(
+		container: HTMLElement,
+		icon: string,
+		label: string,
+		extraClass: string,
+		onClick: () => void,
+	): HTMLButtonElement {
+		const button = container.createEl("button", {
+			cls: ["web-search-action-button", extraClass].filter(Boolean).join(" "),
+			attr: { type: "button", "aria-label": label, title: label },
+		});
+		const iconEl = button.createSpan({ cls: "web-search-action-button-icon" });
+		setIcon(iconEl, icon);
+		button.createSpan({ cls: "web-search-action-button-label", text: label });
+		button.addEventListener("click", onClick);
+		return button;
 	}
 
 	private async addEngine(engine: SearchEngine): Promise<void> {
@@ -330,6 +376,10 @@ export class WebSearchSettingTab extends PluginSettingTab {
 		// Drag handle
 		const handle = row.createDiv({
 			cls: "web-search-engine-drag-handle",
+			attr: {
+				"aria-label": t("settings.dragSite"),
+				title: t("settings.dragSite"),
+			},
 		});
 		setIcon(handle, "grip-vertical");
 
@@ -349,6 +399,8 @@ export class WebSearchSettingTab extends PluginSettingTab {
 		const acts = row.createDiv({ cls: "web-search-engine-actions" });
 
 		const editBtn = acts.createDiv({ cls: "clickable-icon" });
+		editBtn.ariaLabel = t("modal.editSite");
+		editBtn.title = t("modal.editSite");
 		setIcon(editBtn, "pencil");
 		editBtn.addEventListener("click", () => {
 			new SiteEditModal(
@@ -362,6 +414,8 @@ export class WebSearchSettingTab extends PluginSettingTab {
 		});
 
 		const delBtn = acts.createDiv({ cls: "clickable-icon" });
+		delBtn.ariaLabel = t("modal.delete");
+		delBtn.title = t("modal.delete");
 		setIcon(delBtn, "trash");
 		delBtn.addEventListener("click", () => {
 			void this.deleteEngine(engine);
